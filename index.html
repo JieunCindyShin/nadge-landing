@@ -17,7 +17,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='27' fill='%23fff' stroke='%232BB673' stroke-width='6'/><path d='M20 33l8 8 16-18' fill='none' stroke='%232BB673' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
   <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
@@ -149,6 +149,10 @@
         <p data-solid>지금 열심히 만들고 있어요.<br>공모전 같이 하는 친구한테도 알려주세요.</p>
         <button type="button" class="stamp-btn" id="stampBtn" data-solid data-round>냈지!</button>
         <button type="button" class="share-btn" id="shareBtn" data-solid>친구한테 “냈지?” 물어보기</button>
+        <div class="qr-card" data-solid>
+          <img src="qr.svg?v=1" alt="휴대폰으로 냈지 페이지를 여는 QR 코드" width="104" height="104">
+          <p><b>휴대폰으로도 열어보세요</b>폰을 기울이면 카드와 도장이 쏠려요</p>
+        </div>
       </div>
       <div class="world" id="finaleWorld" aria-hidden="true"></div>
     </section>
@@ -156,7 +160,7 @@
 
   <footer class="footer">
     <div><b>냈지 NADGE</b><br>패럴렉스 해커톤 「랜딩톤」 출품작이에요. 화면 속 공모전 이름은 모두 예시예요.</div>
-    <div class="credits">글꼴 Pretendard (SIL OFL 1.1) · 물리 엔진 Matter.js (MIT) · 애니메이션 GSAP<br>페이지 제작에 AI(Claude)를 활용했어요. © 2026 NADGE</div>
+    <div class="credits">글꼴 Pretendard (SIL OFL 1.1) · 물리 엔진 Matter.js (MIT) · 애니메이션 GSAP · QR 코드 Parallax QR for everyone<br>페이지 제작에 AI(Claude)를 활용했어요. © 2026 NADGE</div>
   </footer>
 
   <p class="toast" id="toast" role="status" aria-live="polite"></p>

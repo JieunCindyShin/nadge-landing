@@ -895,6 +895,25 @@ button { font: inherit; color: inherit; }
 .share-btn:active { transform: scale(0.97); }
 .share-btn:focus-visible { outline: 3px solid var(--done); outline-offset: 3px; }
 
+/* QR: 컴퓨터 화면에서만 보여요 (휴대폰에서는 이미 휴대폰이니까요) */
+.qr-card {
+  display: none;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 20px 12px 12px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.qr-card img { display: block; width: 104px; height: 104px; border-radius: 10px; }
+.qr-card p { font-size: 14px; line-height: 1.5; color: var(--muted); }
+.qr-card b { display: block; font-size: 16px; color: var(--ink); }
+@media (min-width: 768px) and (pointer: fine) {
+  .qr-card { display: flex; }
+}
+
 .toast {
   position: fixed;
   left: 50%;
