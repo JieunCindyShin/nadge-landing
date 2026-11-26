@@ -17,7 +17,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='27' fill='%23fff' stroke='%232BB673' stroke-width='6'/><path d='M20 33l8 8 16-18' fill='none' stroke='%232BB673' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=8">
   <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
@@ -32,10 +32,11 @@
       <div class="hero-copy">
         <p class="hero-badge" data-solid>공모전 마감 관리 앱</p>
         <h1 class="hero-title">
-          <span class="l1" data-solid>마감이 쏟아질 때,</span>
-          <span class="l2" data-solid>냈지?</span>
+          <span class="l1" id="heroL1" data-solid>마감이 쏟아질 때,</span>
+          <span class="l2"><span class="l2-word" data-solid>냈지</span><span class="l2-mark" id="heroMark" data-solid>?</span></span>
         </h1>
-        <p class="hero-sub" data-solid>카드를 잡아서 던져보세요 <button type="button" class="link-btn" id="reDrop">다시 쏟기 ↻</button><button type="button" class="link-btn" id="tiltBtn" aria-pressed="false" hidden>폰 기울이기</button></p>
+        <p class="hero-lead" data-solid>공모전 마감부터 제출 확인, 결과 발표까지 한 번에 챙겨요.</p>
+        <p class="hero-sub" data-solid><span id="heroHint" aria-live="polite">카드를 톡 눌러 “냈지!” 도장을 찍어보세요</span> <button type="button" class="link-btn" id="reDrop">다시 쏟기 ↻</button><button type="button" class="link-btn" id="tiltBtn" aria-pressed="false" hidden>폰 기울이기</button></p>
       </div>
       <div class="world" id="heroWorld" aria-hidden="true"></div>
     </section>
@@ -96,6 +97,7 @@
     <section class="features" id="features">
       <p class="eyebrow reveal">냈지가 하는 일</p>
       <h2 class="section-title reveal">딱 세 가지만,<br>확실하게 챙겨요.</h2>
+      <p class="section-lead reveal">캘린더는 날짜만 기억해요. 냈지는 <b>냈는지</b>까지 기억해요.</p>
       <div class="feature-grid">
         <article class="feature">
           <div class="fv fv-alert" aria-hidden="true">
@@ -145,16 +147,30 @@
     <!-- 6. 마무리: 냈지 도장 -->
     <section class="finale" id="finale">
       <div class="finale-copy">
-        <h2 data-solid>마감은 계속 와요.<br>이제 <span class="brand">냈지</span>가 챙길게요.</h2>
-        <p data-solid>지금 열심히 만들고 있어요.<br>공모전 같이 하는 친구한테도 알려주세요.</p>
-        <button type="button" class="stamp-btn" id="stampBtn" data-solid data-round>냈지!</button>
-        <button type="button" class="share-btn" id="shareBtn" data-solid>친구한테 “냈지?” 물어보기</button>
-        <div class="qr-card" data-solid>
+        <h2>마감은 계속 와요.<br>이제 <span class="brand">냈지</span>가 챙길게요.</h2>
+        <p>하나씩 낸 공모전이 쌓여서, 나의 한 해가 돼요.</p>
+
+        <!-- 도장이 달별 칸에 떨어져 쌓이면서 막대그래프가 돼요 -->
+        <div class="record" id="record">
+          <div class="record-head">
+            <div>
+              <p class="record-title"><span id="recYear">2026</span> 냈지 기록 <em>예시</em></p>
+              <p class="record-sum" aria-live="polite">올해 <b id="recTotal">0</b>번 냈고, <b class="win" id="recWin">0</b>번 붙었어요</p>
+            </div>
+            <button type="button" class="link-btn record-replay" id="recReplay">다시 쌓기 ↻</button>
+          </div>
+          <div class="record-world" id="finaleWorld" aria-hidden="true"></div>
+          <div class="record-months" id="recMonths" aria-hidden="true"></div>
+          <p class="record-legend"><i></i>냈어요 <i class="win"></i>붙었어요 · 도장을 톡 누르면 무슨 공모전인지 보여요. 위 <a href="#try">미리 써보기</a>에서 누른 "냈어요"와 "붙었어요"도 여기에 쌓여요.</p>
+        </div>
+
+        <button type="button" class="share-btn" id="shareBtn">친구한테 “냈지?” 물어보기</button>
+        <p class="finale-note">지금 열심히 만들고 있어요. 공모전 같이 하는 친구한테도 알려주세요.</p>
+        <div class="qr-card">
           <img src="qr.svg?v=1" alt="휴대폰으로 냈지 페이지를 여는 QR 코드" width="104" height="104">
           <p><b>휴대폰으로도 열어보세요</b>폰을 기울이면 카드와 도장이 쏠려요</p>
         </div>
       </div>
-      <div class="world" id="finaleWorld" aria-hidden="true"></div>
     </section>
   </main>
 
@@ -168,6 +184,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="main.js?v=5" defer></script>
+  <script src="main.js?v=11" defer></script>
 </body>
 </html>

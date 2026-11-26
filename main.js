@@ -42,7 +42,7 @@
   /* =========================================================
      물리 세계: DOM 요소를 Matter.js 몸체와 묶어서 움직여요.
      ========================================================= */
-  function createWorld(container, { obstacles = () => [] } = {}) {
+  function createWorld(container, { obstacles = () => [], onTap = null } = {}) {
     const M = window.Matter;
     if (!M) return null;
     const { Engine, Bodies, Body, Composite, Constraint, Events } = M;
@@ -81,9 +81,13 @@
         if (!r.width || !r.height) return;
         const cx = r.left - cr.left + r.width / 2;
         const cy = r.top - cr.top + r.height / 2;
+        // 모서리 둥글기는 짧은 변의 절반을 넘으면 안 돼요 (얇은 칸막이 같은 경우).
+        const rad = Math.min(18, r.height / 2 - 1, r.width / 2 - 1);
+        // data-slick: 미끄러운 벽 (기록 그래프 칸막이에 도장이 걸려 떠 있지 않게)
+        const opts = 'slick' in el.dataset ? { ...solid, friction: 0, frictionStatic: 0 } : solid;
         statics.push('round' in el.dataset
-          ? Bodies.circle(cx, cy, r.width / 2, solid)
-          : Bodies.rectangle(cx, cy, r.width, r.height, { ...solid, chamfer: { radius: Math.max(1, Math.min(18, r.height / 2 - 1)) } }));
+          ? Bodies.circle(cx, cy, r.width / 2, opts)
+          : Bodies.rectangle(cx, cy, r.width, r.height, rad > 1 ? { ...opts, chamfer: { radius: rad } } : opts));
       });
       Composite.add(world, statics);
 
@@ -97,7 +101,7 @@
 
     function draw(it) {
       const { x, y } = it.body.position;
-      it.el.style.transform = `translate3d(${x - it.w / 2}px, ${y - it.h / 2}px, 0) rotate(${it.body.angle}rad)`;
+      it.el.style.transform = `translate3d(${x - it.w / 2}px, ${y - it.h / 2}px, 0)${it.upright ? '' : ` rotate(${it.body.angle}rad)`}`;
     }
 
     function add(el, o = {}) {
@@ -119,7 +123,8 @@
       Body.setVelocity(body, { x: o.vx || 0, y: o.vy || 0 });
       Body.setAngularVelocity(body, o.va || 0);
       Composite.add(world, body);
-      const it = { el, body, w, h };
+      // upright: 물리는 그대로 굴러가고, 화면에는 글자가 똑바로 서 있게 그려요 (원은 돌아도 모양이 같아서요).
+      const it = { el, body, w, h, upright: !!o.upright };
       items.set(el, it);
       el.setAttribute('data-body', '');
       draw(it);
@@ -198,18 +203,27 @@
         length: 0,
       });
       Composite.add(world, c);
-      drag = { c, el, id: e.pointerId };
+      // 짧게 톡 누른 건지(탭), 끌어서 던진 건지 나중에 구분하려고 시작 위치와 시각을 기억해요.
+      drag = { c, el, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false };
       try { el.setPointerCapture(e.pointerId); } catch (_) { /* 무시 */ }
       el.classList.add('is-grab');
       start();
     });
     container.addEventListener('pointermove', (e) => {
-      if (drag && e.pointerId === drag.id) drag.c.pointA = local(e);
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.c.pointA = local(e);
+      if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 8) drag.moved = true;
     });
-    const up = (e) => { if (drag && e.pointerId === drag.id) endDrag(); };
-    container.addEventListener('pointerup', up);
-    container.addEventListener('pointercancel', up);
-    container.addEventListener('lostpointercapture', up);
+    container.addEventListener('pointerup', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const tapped = !drag.moved && performance.now() - drag.t0 < 350;
+      const { el } = drag;
+      endDrag();
+      if (tapped && onTap) onTap(el, items.get(el));
+    });
+    const cancel = (e) => { if (drag && e.pointerId === drag.id) endDrag(); };
+    container.addEventListener('pointercancel', cancel);
+    container.addEventListener('lostpointercapture', cancel);
 
     return {
       add,
@@ -229,6 +243,27 @@
           Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.3);
         });
       },
+      // 충격파: (x, y)에서 radius 안의 물체를 바깥쪽과 위쪽으로 밀어내요. 가까울수록 세게요.
+      impulse(x, y, radius, power, skipEl = null) {
+        items.forEach((it) => {
+          if (it.el === skipEl) return;
+          const dx = it.body.position.x - x;
+          const dy = it.body.position.y - y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d > radius) return;
+          const f = power * (1 - d / radius);
+          Body.setVelocity(it.body, {
+            x: it.body.velocity.x + (dx / d) * f,
+            y: it.body.velocity.y + (dy / d) * f - f * 0.55,
+          });
+          Body.setAngularVelocity(it.body, it.body.angularVelocity + (Math.random() - 0.5) * 0.3 * (f / power));
+        });
+      },
+      push(el, vx, vy) {
+        const it = items.get(el);
+        if (it) Body.setVelocity(it.body, { x: vx, y: vy });
+      },
+      itemOf: (el) => items.get(el),
       settle(steps) {
         for (let i = 0; i < steps; i++) Engine.update(engine, STEP);
         items.forEach(draw);
@@ -284,20 +319,192 @@
 
   function initHero() {
     const hero = $('#top');
+    const worldEl = $('#heroWorld');
+    const l1 = $('#heroL1');
+    const word = $('.l2-word', hero);
+    const mark = $('#heroMark');
+    const hint = $('#heroHint');
+    const HINT = hint.textContent;
+    const L1 = l1.textContent;
+    const anim = !!window.gsap && !reduceMotion;
+    let total = 0;
+    let doneCount = 0;
+    let finished = false;
+    let qBody = null;
+
     // 휴대폰에서는 글자가 화면을 거의 다 차지해서, 카드가 글자 뒤로 떨어져 바닥에 쌓이게 해요.
-    const world = createWorld($('#heroWorld'), { obstacles: () => (isNarrow() ? [] : $$('[data-solid]', hero)) });
+    const world = createWorld(worldEl, {
+      obstacles: () => (isNarrow() ? [] : $$('[data-solid]', hero)),
+      onTap: (el) => { if (el.classList.contains('dcard')) stampCard(el); },
+    });
     if (!world) return;
     let timers = [];
+
+    // 휴대폰처럼 좁은 화면에서는 충격파를 약하게 해서 카드가 글자를 덮지 않게 해요.
+    const kick = () => (isNarrow() ? 0.6 : 1);
+    const center = (el) => {
+      const cr = worldEl.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      return { x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2 };
+    };
+
+    // 찍힌 자리에서 화면이 살짝 흔들리고 초록 잉크가 튀어요.
+    function impactFx(x, y) {
+      if (!anim) return;
+      gsap.fromTo(hero, { x: 0, y: 0 }, {
+        keyframes: [{ x: -6, y: 3 }, { x: 5, y: -2 }, { x: -3, y: 1 }, { x: 0, y: 0 }],
+        duration: 0.28,
+        ease: 'none',
+        clearProps: 'transform',
+      });
+      for (let i = 0; i < 9; i++) {
+        const dot = document.createElement('i');
+        dot.className = 'ink';
+        worldEl.appendChild(dot);
+        const a = rand(0, Math.PI * 2);
+        const dist = rand(40, 110);
+        gsap.fromTo(dot, { x, y, scale: rand(0.6, 1.4), opacity: 1 }, {
+          x: x + Math.cos(a) * dist,
+          y: y + Math.sin(a) * dist,
+          scale: 0,
+          opacity: 0,
+          duration: rand(0.45, 0.7),
+          ease: 'power2.out',
+          onComplete: () => dot.remove(),
+        });
+      }
+    }
+
+    function updateHint() {
+      hint.replaceChildren();
+      if (finished) {
+        hint.textContent = '모두 냈어요! 이제 냈지가 챙길게요 ↓';
+        return;
+      }
+      const span = document.createElement('span');
+      span.className = 'hero-progress';
+      const b = document.createElement('b');
+      b.textContent = String(doneCount);
+      span.append('냈다 ', b, ` / ${total}`);
+      hint.append(span);
+    }
+
+    // 카드를 톡 누르면: 위에서 도장이 내려찍히고 → 충격파 → 초록 "냈지!" 카드로 바뀌어요.
+    function stampCard(el) {
+      if (el.classList.contains('is-done') || el.dataset.stamping) return;
+      el.dataset.stamping = '1';
+      const it = world.itemOf(el);
+
+      const finish = () => {
+        delete el.dataset.stamping;
+        if (!el.isConnected) return;
+        el.classList.add('is-done');
+        const s = document.createElement('i');
+        s.className = 'dcard-stamp';
+        s.textContent = '냈지!';
+        el.appendChild(s);
+        const p = it.body.position;
+        if (anim) {
+          world.push(el, it.body.velocity.x * 0.2, 6);
+          world.impulse(p.x, p.y, 300 * kick(), 15 * kick(), el);
+          impactFx(p.x, p.y);
+        }
+        doneCount++;
+        if (doneCount >= total) completeAll();
+        else updateHint();
+      };
+
+      if (!anim) { finish(); return; }
+      const slam = document.createElement('div');
+      slam.className = 'slam';
+      slam.textContent = '냈지!';
+      worldEl.appendChild(slam);
+      const follow = () => gsap.set(slam, { x: it.body.position.x, y: it.body.position.y });
+      gsap.timeline({ onComplete: () => slam.remove() })
+        .fromTo(slam, { scale: 2.6, rotation: -30, opacity: 0 }, {
+          scale: 1, rotation: -12, opacity: 1, duration: 0.24, ease: 'power4.in', onStart: follow, onUpdate: follow, onComplete: finish,
+        })
+        .to(slam, { opacity: 0, scale: 1.08, duration: 0.3, delay: 0.18, onUpdate: follow });
+    }
+
+    // 다 찍으면: 제목의 "?"가 물체가 되어 떨어지고, 그 자리에 "!"가 쾅 찍혀요.
+    function completeAll() {
+      finished = true;
+      updateHint();
+      if (!anim) {
+        mark.textContent = '!';
+        mark.classList.add('is-done');
+        l1.textContent = '마감이 쏟아져도,';
+        word.style.color = 'var(--done)';
+        world.rebuild();
+        return;
+      }
+      // "다시 쏟기"를 누르면 취소되도록 timers에 넣어둬요.
+      timers.push(setTimeout(() => {
+        const c = center(mark);
+        const cs = getComputedStyle(mark);
+        qBody = document.createElement('div');
+        qBody.className = 'q-body';
+        qBody.textContent = '?';
+        qBody.style.fontSize = cs.fontSize;
+        mark.style.visibility = 'hidden';
+        mark.removeAttribute('data-solid');
+        world.rebuild();
+        world.add(qBody, { x: c.x, y: c.y, vx: rand(3, 6), vy: -12, va: 0.16 });
+        world.impulse(c.x, c.y, 260, 8, qBody);
+      }, 450));
+
+      timers.push(setTimeout(() => {
+        mark.textContent = '!';
+        mark.classList.add('is-done');
+        mark.style.visibility = 'visible';
+        gsap.to(word, { color: '#2BB673', duration: 0.4 });
+        gsap.to(l1, {
+          opacity: 0, y: -8, duration: 0.18,
+          onComplete: () => {
+            l1.textContent = '마감이 쏟아져도,';
+            gsap.to(l1, { opacity: 1, y: 0, duration: 0.3, onComplete: () => world.rebuild() });
+          },
+        });
+        gsap.fromTo(mark, { scale: 3.4, rotation: -18, opacity: 0 }, {
+          scale: 1, rotation: 0, opacity: 1, duration: 0.3, ease: 'power4.in',
+          onComplete: () => {
+            mark.setAttribute('data-solid', '');
+            world.rebuild();
+            const c = center(mark);
+            world.impulse(c.x, c.y, 420 * kick(), 20 * kick());
+            impactFx(c.x, c.y);
+          },
+        });
+      }, 1500));
+    }
+
+    function resetTitle() {
+      finished = false;
+      doneCount = 0;
+      qBody = null;
+      if (window.gsap) gsap.killTweensOf([mark, word, l1]);
+      mark.textContent = '?';
+      mark.classList.remove('is-done');
+      mark.removeAttribute('style');
+      mark.setAttribute('data-solid', '');
+      word.removeAttribute('style');
+      l1.removeAttribute('style');
+      l1.textContent = L1;
+      hint.textContent = HINT;
+    }
 
     function drop() {
       timers.forEach(clearTimeout);
       timers = [];
       world.clear();
+      resetTitle();
       world.rebuild();
-      // 화면이 넓을수록 카드가 많이 떨어져요 (10~18장).
-      const n = Math.max(10, Math.min(18, Math.round((world.width * world.height) / 40000)));
+      // 화면이 넓을수록 카드가 많이 떨어져요 (10~14장).
+      const n = Math.max(10, Math.min(14, Math.round((world.width * world.height) / 50000)));
       const core = HERO_CARDS.filter((d) => d.core);
       const rest = shuffle(HERO_CARDS.filter((d) => !d.core)).slice(0, n - core.length);
+      total = core.length + rest.length;
       shuffle([...core, ...rest]).forEach((d, i) => {
         const spawn = () => world.add(makeCard(d), {
           x: (w) => rand(w / 2, Math.max(w / 2, world.width - w / 2)),
@@ -331,14 +538,18 @@
     gsap.registerPlugin(ScrollTrigger);
     ScrollTrigger.config({ ignoreMobileResize: true });
 
-    // 공감 문장: 스크롤에 맞춰 진해지고 밑줄이 그어져요.
+    // 공감 문장: 마감 카드처럼 위에서 툭 떨어져 바닥에 튕기고, 떨어진 뒤 밑줄이 그어져요.
     if (!reduceMotion) {
-      $$('.pain-item').forEach((item) => {
-        gsap.fromTo(item, { opacity: 0.12 }, {
-          opacity: 1,
-          ease: 'none',
-          scrollTrigger: { trigger: item, start: 'top 85%', end: 'top 55%', scrub: true },
-        });
+      $$('.pain-item').forEach((item, i) => {
+        gsap.fromTo(item,
+          { y: -150, rotation: i % 2 ? 5 : -6, opacity: 0 },
+          {
+            y: 0,
+            rotation: 0,
+            opacity: 1,
+            ease: 'bounce.out',
+            scrollTrigger: { trigger: item, start: 'top 98%', end: 'top 62%', scrub: 0.5 },
+          });
         const em = $('em', item);
         if (em) {
           gsap.fromTo(em, { backgroundSize: '0% 100%' }, {
@@ -524,20 +735,39 @@
     dateInput.value = iso(addDays(today, 3));
 
     let seq = 0;
+    const blank = { done: false, result: null, asking: false, announced: false, outcome: null };
+    // 예시 3개: 마감 임박 2개 + 오늘 결과가 나온 1개 (처음부터 "붙었어요"를 눌러볼 수 있어요)
+    const sent = addDays(today, -12);
     const items = [
-      { id: ++seq, name: '겨울 사진 공모전', date: addDays(today, 4), done: false },
-      { id: ++seq, name: '슬로건 공모전', date: addDays(today, 1), done: false },
+      { id: ++seq, name: '겨울 사진 공모전', date: addDays(today, 4), ...blank },
+      { id: ++seq, name: '슬로건 공모전', date: addDays(today, 1), ...blank },
+      { id: ++seq, name: 'UX 기획 공모전', date: sent, ...blank, done: true, result: today, announced: true },
     ];
 
+    const days = (d) => Math.round((d - today) / DAY);
+    const ddayText = (n) => (n === 0 ? 'D-DAY' : n > 0 ? `D-${n}` : '지남');
+    // 맨 아래 "한 해 기록" 그래프에 알려줘요: submit(냈어요) / unsubmit(취소) / win(붙었어요)
+    // month: 도장이 쌓일 달 (지금 낸 건 이번 달, 예전에 낸 예시는 그 마감 달)
+    const emit = (type, it, month) => window.dispatchEvent(new CustomEvent(`nadge:${type}`, {
+      detail: { id: it.id, name: it.name, month },
+    }));
+
+    // 한 줄 = 공모전 하나. 마감 → 냈어요(도장) → 결과 발표일 → 발표 날 결과 확인 → 수상 기록까지 이어져요.
     function row(it) {
-      const d = Math.round((it.date - today) / DAY);
+      const d = days(it.date);
       const li = document.createElement('li');
-      li.className = `titem${it.done ? ' done' : d <= 1 ? ' hot' : d <= 3 ? ' warm' : ''}`;
+      const state = it.outcome === 'win' ? ' win' : it.outcome === 'lose' ? ' lose' : it.result ? ' has-result' : '';
+      li.className = `titem${it.done ? ' done' : d <= 1 ? ' hot' : d <= 3 ? ' warm' : ''}${state}`;
       li.dataset.id = it.id;
 
       const badge = document.createElement('span');
       badge.className = 'titem-dday';
-      badge.textContent = it.done ? '냈음' : d === 0 ? 'D-DAY' : d > 0 ? `D-${d}` : '지남';
+      if (!it.done) badge.textContent = ddayText(d);
+      else if (it.outcome === 'win') badge.textContent = '수상';
+      else if (it.outcome === 'lose') badge.textContent = '다음 기회';
+      else if (it.announced) badge.textContent = '발표!';
+      else if (it.result) badge.textContent = `발표 ${ddayText(days(it.result))}`;
+      else badge.textContent = '냈음';
 
       const text = document.createElement('span');
       text.className = 'titem-text';
@@ -546,33 +776,148 @@
       name.textContent = it.name;
       const date = document.createElement('span');
       date.className = 'titem-date';
-      date.textContent = `${fmt(it.date)} 마감`;
+      if (it.outcome === 'win') date.textContent = '냈음 · 붙었어요! 축하해요 🎉';
+      else if (it.outcome === 'lose') date.textContent = '냈음 · 이번엔 아쉬워요, 다음 기회에!';
+      else if (it.done && it.result) date.textContent = `냈음 · ${days(it.result) === 0 ? '오늘' : fmt(it.result)} 결과 발표`;
+      else date.textContent = `${fmt(it.date)} 마감${it.done ? ' · 냈음' : ''}`;
       text.append(name, date);
 
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'titem-btn';
-      btn.textContent = it.done ? '냈지!' : '냈어요';
+      btn.textContent = it.done ? (it.outcome === 'win' ? '수상!' : '냈지!') : '냈어요';
       btn.setAttribute('aria-label', it.done ? `${it.name} 제출 취소` : `${it.name} 제출 완료로 표시`);
       btn.addEventListener('click', () => {
         it.done = !it.done;
-        render(it.done ? it.id : null, true);
+        if (it.done) {
+          it.asking = true;
+          emit('submit', it, today.getMonth());
+          showToast('냈지! 맨 아래 한 해 기록에도 도장이 하나 쌓였어요 ↓');
+        } else {
+          Object.assign(it, { asking: false, result: null, announced: false, outcome: null });
+          emit('unsubmit', it);
+        }
+        render(it.done ? it.id : null, it.done ? 'stamp' : null);
       });
 
       li.append(badge, text, btn);
+      if (it.asking) li.append(askRow(it));
+      else if (it.done && it.result && !it.announced && !it.outcome) li.append(simRow(it));
+      else if (it.announced && !it.outcome) li.append(resultRow(it));
       return li;
     }
 
-    function render(focusId = null, stamped = false) {
-      const sorted = [...items].sort((a, b) => (a.done - b.done) || (a.date - b.date));
+    // 발표 날까지 기다릴 수 없으니, 그날이 됐다고 치고 미리 보기
+    function simRow(it) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'titem-sim';
+      b.textContent = '발표 날이 됐다고 쳐볼까요? ▶';
+      b.addEventListener('click', () => { it.announced = true; render(it.id, 'announce'); });
+      return b;
+    }
+
+    // 발표 당일: "결과 나왔어요, 확인했지?" → 버튼 한 번으로 기록
+    function resultRow(it) {
+      const box = document.createElement('div');
+      box.className = 'titem-ask is-result';
+      const q = document.createElement('p');
+      q.textContent = `🔔 ${it.name} 결과 나왔어요. 확인했지?`;
+      const mk = (label, cls, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = cls;
+        b.textContent = label;
+        b.addEventListener('click', fn);
+        return b;
+      };
+      box.append(q,
+        mk('붙었어요 🎉', 'ask-win', () => {
+          it.outcome = 'win';
+          emit('win', it);
+          render(it.id, 'win');
+          showToast('축하해요! 맨 아래 한 해 기록에 수상 도장이 찍혔어요 ↓');
+        }),
+        mk('다음 기회에', 'ask-no', () => {
+          it.outcome = 'lose';
+          render(it.id, 'result');
+          showToast('괜찮아요. 낸 것만으로도 기록에 남아요.');
+        }),
+        mk('아직 안 나왔어요', 'ask-no', () => {
+          it.announced = false;
+          render();
+          showToast('며칠 뒤에 다시 물어볼게요.');
+        }));
+      return box;
+    }
+
+    // 냈어요 다음 단계: "결과 발표일도 등록할까요?"
+    function askRow(it) {
+      const box = document.createElement('div');
+      box.className = 'titem-ask';
+      const q = document.createElement('p');
+      const em = document.createElement('span');
+      em.textContent = '결과 발표일';
+      q.append('냈어요! ', em, '도 등록할까요? 그날 아침에 결과 확인을 챙겨드릴게요.');
+      const input = document.createElement('input');
+      input.type = 'date';
+      input.min = iso(it.date);
+      input.value = iso(addDays(it.date, 14));
+      input.setAttribute('aria-label', `${it.name} 결과 발표일`);
+      const yes = document.createElement('button');
+      yes.type = 'button';
+      yes.className = 'ask-yes';
+      yes.textContent = '등록';
+      yes.addEventListener('click', () => {
+        if (!input.value) return;
+        const [y, m, d] = input.value.split('-').map(Number);
+        it.result = new Date(y, m - 1, d);
+        it.asking = false;
+        render(it.id, 'result');
+        showToast(`${fmt(it.result)} 아침에 "결과 나왔어요, 확인했지?" 하고 알려드릴게요.`);
+      });
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.className = 'ask-no';
+      no.textContent = '나중에';
+      no.addEventListener('click', () => { it.asking = false; render(); });
+      box.append(q, input, yes, no);
+      return box;
+    }
+
+    function render(focusId = null, effect = null) {
+      const key = (it) => (it.done ? (it.result || it.date) : it.date);
+      // 순서: 결과 확인할 것 → 아직 안 낸 것(마감 가까운 순) → 낸 것
+      const rank = (it) => (it.announced && !it.outcome ? 0 : it.done ? 2 : 1);
+      const sorted = [...items].sort((a, b) => (rank(a) - rank(b)) || (key(a) - key(b)));
       list.replaceChildren(...sorted.map(row));
-      if (!focusId || !window.gsap || reduceMotion) return;
-      const li = list.querySelector(`[data-id="${focusId}"]`);
-      if (!li) return;
-      if (stamped) {
+      const li = focusId && list.querySelector(`[data-id="${focusId}"]`);
+      // 냈어요를 누르면 그 줄이 아래로 내려가요. 다음 질문이 화면 밖이면 보이는 곳까지 살짝 내려줘요.
+      if (li && effect) {
+        setTimeout(() => {
+          if (!li.isConnected) return;
+          const r = li.getBoundingClientRect();
+          if (r.bottom > window.innerHeight - 12 || r.top < 70) {
+            li.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+          }
+        }, reduceMotion ? 0 : 480);
+      }
+      if (!li || !window.gsap || reduceMotion) return;
+      if (effect === 'stamp') {
         gsap.fromTo($('.titem-btn', li),
           { scale: 2.2, rotation: -40, opacity: 0 },
           { scale: 1, rotation: -12, opacity: 1, duration: 0.45, ease: 'back.out(2.2)' });
+        const ask = $('.titem-ask', li);
+        if (ask) gsap.from(ask, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, duration: 0.4, delay: 0.25, ease: 'power2.out', clearProps: 'all' });
+      } else if (effect === 'result') {
+        gsap.fromTo($('.titem-dday', li), { scale: 1.6 }, { scale: 1, duration: 0.5, ease: 'back.out(2.5)' });
+      } else if (effect === 'announce') {
+        gsap.fromTo($('.titem-dday', li), { scale: 1.6 }, { scale: 1, duration: 0.5, ease: 'back.out(2.5)' });
+        const box = $('.titem-ask', li);
+        if (box) gsap.from(box, { y: -10, opacity: 0, duration: 0.4, ease: 'back.out(1.8)', clearProps: 'all' });
+      } else if (effect === 'win') {
+        gsap.fromTo($('.titem-dday', li), { scale: 1.8, rotation: -8 }, { scale: 1, rotation: 0, duration: 0.55, ease: 'back.out(2.6)' });
+        gsap.fromTo($('.titem-btn', li), { scale: 2.2, rotation: -40, opacity: 0 }, { scale: 1, rotation: -12, opacity: 1, duration: 0.45, ease: 'back.out(2.2)' });
       } else {
         gsap.from(li, { y: -14, opacity: 0, scale: 0.97, duration: 0.5, ease: 'back.out(1.6)' });
       }
@@ -583,13 +928,20 @@
       const name = nameInput.value.trim();
       if (!name || !dateInput.value) return;
       const [y, m, d] = dateInput.value.split('-').map(Number);
-      const it = { id: ++seq, name, date: new Date(y, m - 1, d), done: false };
+      const it = { id: ++seq, name, date: new Date(y, m - 1, d), ...blank };
       items.push(it);
-      if (items.length > 8) items.shift();
+      if (items.length > 8) {
+        const old = items.shift();
+        if (old.done) emit('unsubmit', old);
+      }
       render(it.id);
       nameInput.value = '';
     });
 
+    // 예전에 낸 예시는 한 해 기록에 그 마감 달로 들어가요 (해가 바뀌었으면 이번 달로).
+    items.filter((it) => it.done).forEach((it) => {
+      emit('submit', it, it.date.getFullYear() === today.getFullYear() ? it.date.getMonth() : today.getMonth());
+    });
     render();
   }
 
@@ -597,53 +949,218 @@
      6. 마무리: 냈지 도장이 떨어져요
      ========================================================= */
   function initFinale() {
-    const section = $('#finale');
-    const btn = $('#stampBtn');
-    const world = createWorld($('#finaleWorld'), { obstacles: () => $$('[data-solid]', section) });
+    const record = $('#record');
+    const worldEl = $('#finaleWorld');
+    const replayBtn = $('#recReplay');
+    const totalEl = $('#recTotal');
+    const winEl = $('#recWin');
+    const monthsEl = $('#recMonths');
+    const world = createWorld(worldEl, {
+      obstacles: () => $$('.bin-wall', worldEl),
+      onTap: (el) => showTip(el),
+    });
     if (!world) return;
-    const MAX = isNarrow() ? 26 : 44;
-    const queue = [];
-    let started = false;
 
-    function stamp(n = 1) {
-      for (let i = 0; i < n; i++) {
-        const el = document.createElement('div');
-        el.className = 'stamp';
-        el.innerHTML = '<span>냈지</span><i>✓</i>';
-        world.add(el, {
-          round: true,
-          x: (w) => rand(w / 2, Math.max(w / 2, world.width - w / 2)),
-          y: rand(-140, -50) - i * 60,
-          vx: rand(-3, 3),
-          va: rand(-0.15, 0.15),
-        });
-        queue.push(el);
-        if (queue.length > MAX) world.remove(queue.shift());
+    const now = new Date();
+    $('#recYear').textContent = String(now.getFullYear());
+    // 예시 기록: 1~12월에 낸 공모전 (가상의 이름이에요, 실제 사용자 기록이 아니에요)
+    const RECORD = [
+      ['신년 표어 공모전'],
+      ['에세이 공모전', '캘리그라피 공모전'],
+      ['앱 기획 공모전'],
+      ['레시피 공모전', '일러스트 공모전', '표어 공모전'],
+      ['웹툰 공모전', '독후감 공모전'],
+      ['브이로그 공모전'],
+      ['굿즈 디자인 공모전', '여름 사진 공모전'],
+      ['포스터 공모전', '캐릭터 공모전', '광고 영상 공모전'],
+      ['포트폴리오 공모전', '단편 소설 공모전'],
+      ['웹 디자인 공모전', '브랜드 네이밍 공모전', '아이디어 공모전'],
+      ['광고 카피 공모전', '캠페인 기획 공모전'],
+      [],
+    ];
+    const WINS = new Set([3, 7, 9, 10]); // 이 달의 마지막 공모전은 붙었어요
+    let mode = null;
+    let bins = [];
+    let total = 0;
+    let wins = 0;
+    let started = false;
+    let timers = [];
+
+    // 컴퓨터는 달별 12칸, 휴대폰은 분기별 4칸으로 나눠요.
+    function buildBins() {
+      mode = isNarrow() ? 'q' : 'm';
+      const n = mode === 'q' ? 4 : 12;
+      bins = Array.from({ length: n }, () => []);
+      RECORD.forEach((names, m) => names.forEach((name, k) => {
+        bins[binOf(m)].push({ name, month: m, win: WINS.has(m) && k === names.length - 1 });
+      }));
+      $$('.bin-wall', worldEl).forEach((w) => w.remove());
+      for (let i = 1; i < n; i++) {
+        const w = document.createElement('i');
+        w.className = 'bin-wall';
+        w.dataset.slick = '';
+        w.style.left = `${(i / n) * 100}%`;
+        worldEl.appendChild(w);
       }
+      const cur = current();
+      monthsEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+      monthsEl.replaceChildren(...Array.from({ length: n }, (_, i) => {
+        const s = document.createElement('span');
+        s.textContent = mode === 'q' ? `${i * 3 + 1}~${i * 3 + 3}월` : `${i + 1}월`;
+        if (i === cur) s.className = 'now';
+        return s;
+      }));
+    }
+    const binOf = (month) => (mode === 'q' ? Math.floor(month / 3) : month);
+    const current = () => binOf(now.getMonth());
+    // 도장 크기: 칸 폭에 맞춰요 (칸막이 두께만큼 여유를 둬요).
+    const size = () => Math.max(18, Math.min(mode === 'q' ? 32 : 48, Math.floor(world.width / bins.length - 16)));
+
+    function makeStamp(win, d) {
+      const el = document.createElement('div');
+      el.className = `stamp${win ? ' is-win' : ''}`;
+      el.style.setProperty('--stamp', `${d}px`);
+      if (d >= 34) {
+        el.textContent = win ? '수상' : '냈지';
+        el.style.fontSize = `${Math.round(d * 0.3)}px`;
+      } else {
+        el.textContent = win ? '★' : '✓';
+        el.style.fontSize = `${Math.round(d * 0.5)}px`;
+      }
+      return el;
+    }
+
+    const showCounts = () => {
+      totalEl.textContent = String(total);
+      winEl.textContent = String(wins);
+    };
+
+    // s = { name, month, win }: 도장 하나 = 낸 공모전 하나
+    function spawn(s) {
+      const d = size();
+      const bw = world.width / bins.length;
+      const el = makeStamp(s.win, d);
+      el.dataset.name = s.name;
+      el.dataset.month = String(s.month);
+      world.add(el, { round: true, upright: true, x: bw * (binOf(s.month) + 0.5) + rand(-3, 3), y: -d - 30, va: rand(-0.05, 0.05) });
+      total++;
+      if (s.win) wins++;
+      showCounts();
+      return el;
+    }
+
+    // 도장을 톡 누르면 무슨 공모전이었는지 말풍선으로 보여줘요.
+    let tip = null;
+    let tipTimer;
+    function showTip(el) {
+      const it = world.itemOf(el);
+      if (!it) return;
+      if (!tip) {
+        tip = document.createElement('span');
+        tip.className = 'stamp-tip';
+        worldEl.appendChild(tip);
+      }
+      const win = el.classList.contains('is-win');
+      tip.textContent = `${Number(el.dataset.month) + 1}월 · ${el.dataset.name} · ${win ? '수상 🎉' : '냈어요'}`;
+      tip.classList.toggle('is-win', win);
+      const { x, y } = it.body.position;
+      const half = tip.offsetWidth / 2 + 4;
+      tip.style.left = `${Math.min(Math.max(x, half), world.width - half)}px`;
+      tip.style.top = `${y - it.h / 2 - 8}px`;
+      tip.classList.add('is-on');
+      clearTimeout(tipTimer);
+      tipTimer = setTimeout(() => tip.classList.remove('is-on'), 2400);
+      world.push(el, rand(-0.6, 0.6), -5);
+    }
+    const hideTip = () => { clearTimeout(tipTimer); if (tip) tip.classList.remove('is-on'); };
+
+    // 미리 써보기에서 온 기록: 냈어요 → 그 달 칸에 도장, 붙었어요 → 그 도장이 "수상"으로 바뀌어요.
+    // 위에서 누르지 않은 건 여기에 생기지 않아요.
+    const extra = new Map(); // 미리 써보기 공모전 id → { name, month, win, el }
+    window.addEventListener('nadge:submit', (e) => {
+      const { id, name, month = now.getMonth() } = e.detail;
+      if (extra.has(id)) return;
+      const rec = { name, month, win: false, el: null };
+      extra.set(id, rec);
+      if (started) { rec.el = spawn(rec); world.start(); }
+    });
+    window.addEventListener('nadge:unsubmit', (e) => {
+      const rec = extra.get(e.detail.id);
+      if (!rec) return;
+      extra.delete(e.detail.id);
+      if (!rec.el) return;
+      world.remove(rec.el);
+      hideTip();
+      total--;
+      if (rec.win) wins--;
+      showCounts();
+    });
+    window.addEventListener('nadge:win', (e) => {
+      const rec = extra.get(e.detail.id);
+      if (!rec || rec.win) return;
+      rec.win = true;
+      if (!rec.el) return;
+      const d = parseFloat(rec.el.style.getPropertyValue('--stamp')) || 40;
+      rec.el.classList.add('is-win');
+      rec.el.textContent = d >= 34 ? '수상' : '★';
+      world.push(rec.el, rand(-1, 1), -9);
+      wins++;
+      showCounts();
+    });
+
+    // 1월 칸부터 차례로 도장이 떨어져 쌓여요.
+    function dropAll() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      hideTip();
+      world.clear();
+      world.rebuild();
+      total = 0;
+      wins = 0;
+      totalEl.textContent = '0';
+      winEl.textContent = '0';
+      // 예시 기록과 미리 써보기에서 낸 것을 달 순서대로 섞어서 1월부터 쌓아요.
+      extra.forEach((rec) => { rec.el = null; });
+      const queue = [];
+      bins.forEach((list) => list.forEach((s) => queue.push({ s })));
+      extra.forEach((rec) => queue.push({ s: rec, rec }));
+      queue.sort((a, b) => binOf(a.s.month) - binOf(b.s.month));
+      queue.forEach(({ s, rec }, k) => {
+        const go = () => { const el = spawn(s); if (rec) rec.el = el; };
+        if (reduceMotion) go();
+        else timers.push(setTimeout(go, 150 + k * 90));
+      });
+      if (reduceMotion) world.settle(700);
+    }
+
+    function begin() {
+      if (started) return;
+      started = true;
+      buildBins();
+      dropAll();
+      world.start();
     }
 
     new IntersectionObserver(([en]) => {
       if (!en.isIntersecting) { world.stop(); return; }
       world.start();
-      if (!started && en.intersectionRatio >= 0.35) {
-        started = true;
-        world.rebuild();
-        stamp(isNarrow() ? 5 : 8);
-      }
-    }, { threshold: [0, 0.35] }).observe(section);
+      if (en.intersectionRatio >= 0.4) begin();
+    }, { threshold: [0, 0.4] }).observe(record);
 
-    btn.addEventListener('click', () => {
-      if (!started) { started = true; world.rebuild(); }
-      stamp(3);
+    // 다시 쌓기: 1월부터 처음부터 다시 떨어뜨려요.
+    replayBtn.addEventListener('click', () => {
+      if (!started) { begin(); return; }
+      dropAll();
       world.start();
-      if (window.gsap && !reduceMotion) {
-        gsap.fromTo(btn, { scale: 0.86 }, { scale: 1, duration: 0.6, ease: 'elastic.out(1.2, 0.4)' });
-      }
     });
+
     worlds.push(world);
     if (DEBUG) window.__nadge.finale = world;
-    fontsReady().then(() => world.rebuild());
-    window.addEventListener('resize', debounce(() => world.rebuild(), 150));
+    fontsReady().then(() => { if (!started) buildBins(); world.rebuild(); });
+    window.addEventListener('resize', debounce(() => {
+      // 컴퓨터 ↔ 휴대폰 크기가 바뀌면 칸 수가 달라져서 처음부터 다시 쌓아요.
+      if (started && (isNarrow() ? 'q' : 'm') !== mode) { buildBins(); dropAll(); } else world.rebuild();
+    }, 150));
   }
 
   /* =========================================================
@@ -749,8 +1266,8 @@
   initCalendar();
   initHero();
   initScroll();
+  initFinale(); // 미리 써보기보다 먼저: 미리 써보기의 예시 기록을 받아야 해요
   initTry();
-  initFinale();
   initTilt();
   initShare();
 })();
