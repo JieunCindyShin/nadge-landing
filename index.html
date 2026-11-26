@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>냈지 NADGE · 마감이 쏟아질 때</title>
+  <meta name="description" content="공모전 마감, 발표일, 제출 파일을 한곳에서 챙겨주는 앱, 냈지(NADGE).">
+  <meta property="og:title" content="냈지 NADGE · 마감이 쏟아질 때">
+  <meta property="og:description" content="공모전 마감, 발표일, 제출 파일을 한곳에서 챙겨주는 앱.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://nadge.parallax.kr/">
+  <meta property="og:image" content="https://nadge.parallax.kr/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#F5F3EE">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='27' fill='%23fff' stroke='%232BB673' stroke-width='6'/><path d='M20 33l8 8 16-18' fill='none' stroke='%232BB673' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="style.css?v=2">
+  <script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+  <header class="nav" id="nav">
+    <a class="logo" href="#top" data-scroll>냈지<span>NADGE</span></a>
+    <a class="nav-cta" href="#try" data-scroll>미리 써보기</a>
+  </header>
+
+  <main>
+    <!-- 1. 첫 화면: 마감 카드가 쏟아져요 -->
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="hero-badge" data-solid>공모전 마감 관리 앱</p>
+        <h1 class="hero-title">
+          <span class="l1" data-solid>마감이 쏟아질 때,</span>
+          <span class="l2" data-solid>냈지?</span>
+        </h1>
+        <p class="hero-sub" data-solid>카드를 잡아서 던져보세요 <button type="button" class="link-btn" id="reDrop">다시 쏟기 ↻</button><button type="button" class="link-btn" id="tiltBtn" aria-pressed="false" hidden>폰 기울이기</button></p>
+      </div>
+      <div class="world" id="heroWorld" aria-hidden="true"></div>
+    </section>
+
+    <!-- 2. 공감 -->
+    <section class="pain" id="pain">
+      <h2 class="pain-title reveal">이거 나만 그래?</h2>
+      <ul class="pain-list">
+        <li class="pain-item">마감을 <em>3시간 전에</em> 알았다.</li>
+        <li class="pain-item">발표일이 <em>지나고 나서야</em> 결과를 봤다.</li>
+        <li class="pain-item pain-file">최종_진짜최종_<em>제출용(2)</em>.pdf</li>
+        <li class="pain-item">어디에 뭘 냈는지 <em>기억이 안 난다.</em></li>
+      </ul>
+      <p class="pain-outro reveal">다들 그렇더라고요. 그래서 만들었어요.</p>
+    </section>
+
+    <!-- 3. 전환: 흩어진 카드가 정리돼요 -->
+    <section class="sort" id="sort">
+      <div class="sort-stage">
+        <div class="sort-copy">
+          <p class="eyebrow">냈지 NADGE</p>
+          <h2>흩어진 마감,<br><span class="brand">냈지</span>가 정리해요.</h2>
+          <p class="sort-hint" id="sortHint">스크롤을 내려보세요 ↓</p>
+        </div>
+        <div class="phone" id="phone">
+          <div class="phone-screen">
+            <div class="phone-notch"></div>
+            <div class="nudge-slot" id="nudgeSlot"></div>
+            <div class="phone-head"><span>이번 주 마감</span><span class="phone-count">6</span></div>
+            <ol class="slots">
+              <li class="slot"></li>
+              <li class="slot"></li>
+              <li class="slot"></li>
+              <li class="slot"></li>
+              <li class="slot"></li>
+              <li class="slot"></li>
+            </ol>
+            <div class="phone-add">＋ 마감 추가</div>
+          </div>
+        </div>
+        <div class="sort-layer" id="sortCards" aria-hidden="true">
+          <div class="scard" data-c="#FFC48A" style="--bar:#FF5B2E"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">숏폼 영상 공모전</b><span class="scard-meta">오늘 자정까지</span></span><span class="scard-dday">D-DAY</span></div>
+          <div class="scard" data-c="#FFE15A" style="--bar:#FF5B2E"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">슬로건 공모전</b><span class="scard-meta">내일 마감</span></span><span class="scard-dday">D-1</span></div>
+          <div class="scard" data-c="#A9D6FF" style="--bar:#FF9F1C"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">창업 경진대회</b><span class="scard-meta">서류 마감</span></span><span class="scard-dday">D-2</span></div>
+          <div class="scard" data-c="#BDF3A3" style="--bar:#141414"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">겨울 사진 공모전</b><span class="scard-meta">마감</span></span><span class="scard-dday">D-4</span></div>
+          <div class="scard" data-c="#FFB4C8" style="--bar:#141414"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">로고 디자인 공모전</b><span class="scard-meta">마감</span></span><span class="scard-dday">D-6</span></div>
+          <div class="scard" data-c="#D6C2FF" style="--bar:#3D7BFF"><i class="scard-bar"></i><span class="scard-text"><b class="scard-name">UX 기획 공모전</b><span class="scard-meta">결과 발표</span></span><span class="scard-dday">발표</span></div>
+          <div class="nudge" id="nudge">
+            <span class="nudge-app"><i></i>냈지 · 지금</span>
+            <b>슬로건 공모전, 내일 마감이에요.</b>
+            <span>아직 안 냈다면 지금 챙겨요. 냈지?</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 기능 -->
+    <section class="features" id="features">
+      <p class="eyebrow reveal">냈지가 하는 일</p>
+      <h2 class="section-title reveal">딱 세 가지만,<br>확실하게 챙겨요.</h2>
+      <div class="feature-grid">
+        <article class="feature">
+          <div class="fv fv-alert" aria-hidden="true">
+            <div class="fv-pill p1"><b>D-3</b>슬로건 공모전 마감이 3일 남았어요</div>
+            <div class="fv-pill p2"><b>D-1</b>내일 마감이에요</div>
+            <div class="fv-pill p3 hot"><b>오늘</b>자정까지예요. 냈지?</div>
+          </div>
+          <h3>마감 알림</h3>
+          <p>D-3, D-1, 그리고 당일. 냈는지 슬쩍 물어봐요.</p>
+        </article>
+        <article class="feature">
+          <div class="fv fv-cal" aria-hidden="true">
+            <div class="cal-head"><b>12월</b><span>발표 1건</span></div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+          <h3>발표일 체크</h3>
+          <p>발표 날이 되면 결과 확인을 챙겨요. 붙었는지도 기록해둬요.</p>
+        </article>
+        <article class="feature">
+          <div class="fv fv-file" aria-hidden="true">
+            <div class="file f1">기획서_v1.pdf</div>
+            <div class="file f2">기획서_수정.pdf</div>
+            <div class="file f3">기획서_최종.pdf</div>
+            <div class="file f4"><i>✓</i>제출본.pdf</div>
+          </div>
+          <h3>제출 파일 보관</h3>
+          <p>무엇을 냈는지, 최종본 하나만 깔끔하게 남겨요.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- 5. 미리 써보기 -->
+    <section class="try" id="try">
+      <p class="eyebrow reveal">미리 써보기</p>
+      <h2 class="section-title reveal">마감 하나,<br>넣어볼래요?</h2>
+      <div class="try-panel reveal">
+        <form class="try-form" id="tryForm" autocomplete="off">
+          <label class="field field-name"><span>공모전 이름</span><input id="tryName" maxlength="20" placeholder="예: 겨울 사진 공모전" required></label>
+          <label class="field field-date"><span>마감일</span><input id="tryDate" type="date" required></label>
+          <button class="btn" type="submit">추가</button>
+        </form>
+        <ul class="try-list" id="tryList" aria-live="polite"></ul>
+        <p class="try-note">입력한 내용은 이 화면에서만 보여요. 어디에도 저장되거나 전송되지 않아요.</p>
+      </div>
+    </section>
+
+    <!-- 6. 마무리: 냈지 도장 -->
+    <section class="finale" id="finale">
+      <div class="finale-copy">
+        <h2 data-solid>마감은 계속 와요.<br>이제 <span class="brand">냈지</span>가 챙길게요.</h2>
+        <p data-solid>지금 열심히 만들고 있어요.<br>공모전 같이 하는 친구한테도 알려주세요.</p>
+        <button type="button" class="stamp-btn" id="stampBtn" data-solid data-round>냈지!</button>
+        <button type="button" class="share-btn" id="shareBtn" data-solid>친구한테 “냈지?” 물어보기</button>
+      </div>
+      <div class="world" id="finaleWorld" aria-hidden="true"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div><b>냈지 NADGE</b><br>패럴렉스 해커톤 「랜딩톤」 출품작이에요. 화면 속 공모전 이름은 모두 예시예요.</div>
+    <div class="credits">글꼴 Pretendard (SIL OFL 1.1) · 물리 엔진 Matter.js (MIT) · 애니메이션 GSAP<br>페이지 제작에 AI(Claude)를 활용했어요. © 2026 NADGE</div>
+  </footer>
+
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+  <script src="main.js?v=5" defer></script>
+</body>
+</html>
