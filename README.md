@@ -2,7 +2,9 @@
 
 > 마감이 쏟아질 때, 냈지?
 
-공모전 마감, 발표일, 제출 파일을 챙겨주는 앱 "냈지"의 랜딩 페이지예요. Parallax 해커톤 「랜딩톤」 출품작이에요.
+**👉 페이지 보기: https://nadge-landing.parallax.kr**
+
+공모전 마감, 발표일, 제출 파일을 챙겨주는 앱 "냈지"의 랜딩 페이지예요. Parallax 해커톤 「랜딩톤」 출품작이에요. [Parallax Cloud](https://cloud.parallax.kr)로 배포했어요.
 
 ## 둘러보기
 
